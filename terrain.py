@@ -1,3 +1,5 @@
+import numpy as np
+from scipy.spatial import Voronoi as vp
 import pymel.core as pm
 import voronoi as vo
 
@@ -15,40 +17,72 @@ def main():
     createRiver()
 
 def calcTerrain( river ):
-    rEPs = getEditPointsRiver2D ( river )
-    rEPs.append((-100,-100))
-    rEPs.append((100,-100))
-    rEPs.append((-100,100))
-    rEPs.append((100,100))
-    rEPs.append((-1000,-1000))
-    rEPs.append((1000,-1000))
-    rEPs.append((-1000,1000))
-    rEPs.append((1000,1000))
-    rEPs.append((-10000,-10000))
-    rEPs.append((10000,-10000))
-    rEPs.append((-10000,10000))
-    rEPs.append((10000,10000))
-    print rEPs
+    rEPs = getEditPointsRiver3D ( river )
+    rEPs = np.append(rEPs, [[-100,-100]], axis=0)
+    rEPs = np.append(rEPs, [[100,-100]], axis=0)
+    rEPs = np.append(rEPs, [[-100,100]], axis=0)
+    rEPs = np.append(rEPs, [[100,100]], axis=0)
+
+    # print rEPs
+
+
+    #to numpy
+    rPoints = rEPs
+    # print rPoints
+    vorPoints_np = vp(rPoints)
+    # print vorPoints_np
+    # print vorPoints_np.vertices
+    vorRegions = []
+    for x in vorPoints_np.regions:
+        nonNegative = True
+        for y in x:
+            if y == -1:
+                nonNegative = False
+        if nonNegative is True:
+            #not empty
+            if x:
+                vorRegions.append(x)
+
+    # print vorRegions
+    vorFaces = []
+    faceNames = []
+    for region in vorRegions:
+        tempFace = []
+        for vertex in region:
+            npVertex = vorPoints_np.vertices[vertex]
+            npVertex = np.insert(npVertex, 1, 0.0)
+            tempFace.append(npVertex)
+        # print tempFace
+        vorFaces.append(tempFace)
+        faceNames.append( pm.polyCreateFacet( n='terrainPlane', p=tempFace )[0] )
+    pm.group( faceNames, n='terrain')
+
+    
+    # print vorFaces
+    # pm.polyCreateFacet( p=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)] )
+    # print vorRegions
+
     # calc voronoi
-    points = []
-    for i in range ( 0, len(rEPs) ):
-        point =  Point(rEPs[i][0], rEPs[i][1] )
-        points.append ( Point(rEPs[i][0], rEPs[i][1] ) )
-    vorPoints = vo.computeVoronoiDiagram(points)
-    print vorPoints[2]
-    print vorPoints[0]
-    vorVertices = vorPoints[0]
-    vorIndex = vorPoints[2]
-    edgesDict = {}
-    for i in range ( 0, len(vorIndex) ):
-        # if vorIndex[i][1] == -1 or vorIndex[i][2] == -1 :
-        edgesDict[ vorIndex[i][0] ] = ( [ vorVertices[ vorIndex[i][1] ],  vorVertices[ vorIndex[i][2] ] ] )
-        # else:
-        #     print "i found infinites"
-    # print edgesDict
-    for i in range ( 0, len(edgesDict) ):
-        x = edgesDict[i]
-        pm.curve( p=[(x[0][0], 0, x[0][1]), (x[1][0], 0, x[1][1]) ], d= 1)
+    # points = []
+    # for i in range ( 0, len(rEPs) ):
+    #     point =  Point(rEPs[i][0], rEPs[i][1] )
+    #     points.append ( Point(rEPs[i][0], rEPs[i][1] ) )
+    # vorPoints = vo.computeVoronoiDiagram(points)
+
+    # print vorPoints[2]
+    # print vorPoints[0]
+    # vorVertices = vorPoints[0]
+    # vorIndex = vorPoints[2]
+    # edgesDict = {}
+    # for i in range ( 0, len(vorIndex) ):
+    #     # if vorIndex[i][1] == -1 or vorIndex[i][2] == -1 :
+    #     edgesDict[ vorIndex[i][0] ] = ( [ vorVertices[ vorIndex[i][1] ],  vorVertices[ vorIndex[i][2] ] ] )
+    #     # else:
+    #     #     print "i found infinites"
+    # # print edgesDict
+    # for i in range ( 0, len(edgesDict) ):
+    #     x = edgesDict[i]
+    #     pm.curve( p=[(x[0][0], 0, x[0][1]), (x[1][0], 0, x[1][1]) ], d= 1)
     # terrainPts = retrieveVertices(terrain[0])
 
     # tPointsDict ( terrainPts )
@@ -71,19 +105,9 @@ def getEditPointsRiver2D(river):
     # without Y
     return zip(rEPs[0::3], rEPs[2::3])
 
-    #not so good solution, the lines above do the same
-    #selec river CVs and save their names in an array
-    # pm.select ( (river + ".cv[*]"), r = True );
-    # cvNames = pm.ls ( sl=True, fl=True );
-    # # print cv
-    # # clear select
-    # pm.select ( cl=True );
-    # #cvNames[0] contains rCurveShape1.cv[0]
-    # rCVs = []
-    # # retrieve all Curve CVs points
-    # for i in range ( 0, len(cvNames) ):
-    #     rCVs.append ( pm.xform( cvNames[i], q=True, ws=True, t=True) )
-    # return rCVs
+def getEditPointsRiver3D(river):
+    rEPs = pm.xform( str(river) + '.ep[*]', q=True, ws=True, t=True )
+    return np.array(zip(rEPs[0::3], rEPs[2::3]))
 
 def createRiver():
     initialPoint = [0, 0, 0]
