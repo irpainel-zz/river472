@@ -1,7 +1,10 @@
 import numpy as np
+import math as math
+import random
 from scipy.spatial import Voronoi as vp
 import pymel.core as pm
 import voronoi as vo
+from collections import defaultdict
 
 tSize = 100
 tSub = 50
@@ -16,18 +19,37 @@ def main():
     # terrain = pm.polyPlane( n='wTerrain', sx=tSub, sy=tSub, w=tSize, h=tSize)
     createRiver()
 
-def calcTerrain( river ):
-    rEPs = getEditPointsRiver3D ( river )
-    rEPs = np.append(rEPs, [[-100,-100]], axis=0)
-    rEPs = np.append(rEPs, [[100,-100]], axis=0)
-    rEPs = np.append(rEPs, [[-100,100]], axis=0)
-    rEPs = np.append(rEPs, [[100,100]], axis=0)
+def computeRiverAltitude( river, angle=0.05 ):
+    #default angle is 1 degree
+    #edit Points
+    rEPs = np.array(getCVRiver3D ( river ))
+    print rEPs
+    #generate a random value from 0 to angle
+    rAngle = np.random.uniform( 0, angle, len(rEPs) )
+    # print 'angle ' + str(rAngle)
+    y = [0]
+    tY = 0
+    #for from second point to last
+    for i in range( 1, len(rEPs) ):
+        dist = np.linalg.norm(rEPs[i] - rEPs[i-1])
+        # print 'dist ' + str(dist)
+        tY += dist*np.tan(angle)
+        y.append( tY )
+        # print y
+    rEPs[:,1] = y
+    print rEPs
+    return rEPs
+
+def draw3dRiver( river2d ):
+    river = pm.curve( n='rCurve3D', p=computeRiverAltitude(river2d) )
+
+def computeTerrain( river ):
+    rEPs = np.array(getEditPointsRiver2D ( river ))
+    rPoints = computeBoundary(rEPs)
 
     # print rEPs
+    pm.curve( d=1, p=getEditPointsRiver3D ( river ) )
 
-
-    #to numpy
-    rPoints = rEPs
     # print rPoints
     vorPoints_np = vp(rPoints)
     # print vorPoints_np
@@ -43,6 +65,7 @@ def calcTerrain( river ):
             if x:
                 vorRegions.append(x)
 
+    adjVertices = computeAdjacentVertices(vorRegions)
     # print vorRegions
     vorFaces = []
     faceNames = []
@@ -58,46 +81,30 @@ def calcTerrain( river ):
     pm.group( faceNames, n='terrain')
 
     
-    # print vorFaces
-    # pm.polyCreateFacet( p=[(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)] )
-    # print vorRegions
+def computeBoundary(rEPs):
+    tEPs = np.absolute(rEPs)
+    xmax, zmax = abs(tEPs.max(axis=0))
+    boundary = max( xmax, zmax ) * 1.1
+    print boundary
+    rEPs = np.append(rEPs, [[-boundary,-boundary]], axis=0)
+    rEPs = np.append(rEPs, [[boundary,-boundary]], axis=0)
+    rEPs = np.append(rEPs, [[-boundary,boundary]], axis=0)
+    rEPs = np.append(rEPs, [[boundary,boundary]], axis=0)
 
-    # calc voronoi
-    # points = []
-    # for i in range ( 0, len(rEPs) ):
-    #     point =  Point(rEPs[i][0], rEPs[i][1] )
-    #     points.append ( Point(rEPs[i][0], rEPs[i][1] ) )
-    # vorPoints = vo.computeVoronoiDiagram(points)
+    return rEPs
 
-    # print vorPoints[2]
-    # print vorPoints[0]
-    # vorVertices = vorPoints[0]
-    # vorIndex = vorPoints[2]
-    # edgesDict = {}
-    # for i in range ( 0, len(vorIndex) ):
-    #     # if vorIndex[i][1] == -1 or vorIndex[i][2] == -1 :
-    #     edgesDict[ vorIndex[i][0] ] = ( [ vorVertices[ vorIndex[i][1] ],  vorVertices[ vorIndex[i][2] ] ] )
-    #     # else:
-    #     #     print "i found infinites"
-    # # print edgesDict
-    # for i in range ( 0, len(edgesDict) ):
-    #     x = edgesDict[i]
-    #     pm.curve( p=[(x[0][0], 0, x[0][1]), (x[1][0], 0, x[1][1]) ], d= 1)
-    # terrainPts = retrieveVertices(terrain[0])
+def computeAdjacentVertices( regions ):
+    adjVertices = defaultdict( list )
 
-    # tPointsDict ( terrainPts )
-
-# def tPointsDict ( tPts ):
-#     tPtsDict = {}
-#     for i in range(0, len(tPts)):
-#         tPtsDict[ (tPts[i][0], tPts[i][1]) ] = i
-#
-#     print tPtsDict
-#     print len (tPtsDict)
-#     print len (tPts)
+    rIndex = 0
+    for region in regions:
+        for vertex in region:
+            adjVertices[vertex].append (rIndex)
+        rIndex += 1
+    print adjVertices.items()
+    return adjVertices
 
 def getEditPointsRiver2D(river):
-    #better solution:
     #ignores Y value
     rEPs = pm.xform( str(river) + '.ep[*]', q=True, ws=True, t=True )
     # with Y
@@ -105,9 +112,13 @@ def getEditPointsRiver2D(river):
     # without Y
     return zip(rEPs[0::3], rEPs[2::3])
 
+def getCVRiver3D(river):
+    rEPs = pm.xform( str(river) + '.cv[*]', q=True, ws=True, t=True )
+    return zip(rEPs[0::3], rEPs[1::3], rEPs[2::3])
+
 def getEditPointsRiver3D(river):
     rEPs = pm.xform( str(river) + '.ep[*]', q=True, ws=True, t=True )
-    return np.array(zip(rEPs[0::3], rEPs[2::3]))
+    return zip(rEPs[0::3], rEPs[1::3], rEPs[2::3])
 
 def createRiver():
     initialPoint = [0, 0, 0]
