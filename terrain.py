@@ -14,6 +14,8 @@ class Terrain:
         self.regions={}
         self.adjVertices = defaultdict( list )
         self.rCurveName = name
+        self.vertices = None
+        self.vertices3d = None
 
     def createRiver( self ):
         initialPoint = [0, 0, 0]
@@ -59,13 +61,13 @@ class Terrain:
 
         vorPoints_np = vp(rPoints)
 
-        vorVertices = vorPoints_np.vertices
+        self.vertices = vorPoints_np.vertices
 
         #remove all infinites values
         vorRegions = self.removeNegatives ( vorPoints_np.regions )
 
         #create a dict with all the region Objects
-        self.createRegionObjects( vorVertices, vorRegions, rEPs )
+        self.createRegionObjects( vorRegions, rEPs )
 
         #vertex X is shared by N faces
         self.computeAdjacentVertices( )
@@ -73,31 +75,54 @@ class Terrain:
         # computeAdjEdges ( adjVertices )
         self.computeRegionBoundary(  )
 
-        self.computeRiverAltitude (  )
+        self.computeRiverAltitude( 0.1 )
 
+        self.generateTerrain( )
 
-        for reg in self.regions.values():
-            print reg.pointY
-            print reg.nextEdgeY
-
-        # vorFaces = []
-        # faceNames = []
-        # for region in vorRegions:
-        #     tempFace = []
-        #     for vertex in region:
-        #         npVertex = vorPoints_np.vertices[vertex]
-        #         npVertex = np.insert(npVertex, 1, 0.0)
-        #         tempFace.append(npVertex)
-        #     # print tempFace
-        #     vorFaces.append(tempFace)
-        #     faceNames.append( pm.polyCreateFacet( n='terrainPlane', p=tempFace )[0] )
-        # pm.group( faceNames, n='terrain')
+        # self.draw3dRiver( )
 
     # def computeAdjEdges ( adjVertices ):
     #     print adjVertices
     #     for key, value in adjVertices.items():
     #         if len( value ) > 1:
     #             if 
+
+    def generateTerrain( self ):
+
+        self.vertices3d = []
+
+        #insert zeros to Y values
+        for i in range( 0, len( self.vertices ) ):
+            tv = self.vertices[i]
+            tv = np.insert( tv, 1, 0.0 )
+            self.vertices3d.append( tv )
+
+
+        for region in self.regions.values():
+            for vertexIndex in region.regionI:
+                if region.nextEdge is not None:
+                    if vertexIndex in region.nextEdge:
+                        #sum Y value to vertex
+                        yDist = region.nextEdgeY - self.vertices3d[vertexIndex][1]
+                        self.vertices3d[vertexIndex][1] = yDist
+
+        for v in self.vertices3d:
+            print v
+
+
+        vorFaces = []
+        faceNames = []
+        for region in self.regions.values():
+            tempFace = []
+            # print region.regionI
+            for vertex in region.regionI:
+                npVertex = self.vertices3d[vertex]
+                tempFace.append(npVertex)
+            # print tempFace
+            vorFaces.append(tempFace)
+            faceNames.append( pm.polyCreateFacet( n='terrainPlane', p=tempFace )[0] )
+        pm.group( faceNames, n='terrain')
+
 
     def computeRegionBoundary( self ):
 
@@ -113,8 +138,8 @@ class Terrain:
                         continue
 
 
-    def createRegionObjects ( self, vorVertices, rIndeces, rEPs ):
-        regionVertices = self.indexToVertex( vorVertices, rIndeces )
+    def createRegionObjects ( self, rIndeces, rEPs ):
+        regionVertices = self.indexToVertex( self.vertices, rIndeces )
         # print len(regionVertices)
         for region, regionIndex in zip(regionVertices, rIndeces):
             for i in range(0, len(rEPs)):
@@ -237,5 +262,11 @@ class Terrain:
         xOrig = pm.xform(str(self.rCurveName) + '.vtx[*]', q=True, ws=True, t=True)
         return zip(xOrig[0::3], xOrig[1::3], xOrig[2::3])
 
-    def draw3dRiver( river2d ):
-        river = pm.curve( n='rCurve3D', p=computeRiverAltitude(river2d) )
+    def draw3dRiver( self ):
+        riverPoints3D = []
+        for region in self.regions.values():
+            tP = region.point
+            tP = np.insert(tP, 1, region.pointY)
+            riverPoints3D.append( tP )
+        print riverPoints3D
+        river = pm.curve( n='rCurve3D', p=riverPoints3D )
