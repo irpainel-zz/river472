@@ -75,9 +75,9 @@ class Terrain:
         # computeAdjEdges ( adjVertices )
         self.computeRegionBoundary(  )
 
-        self.computeRiverAltitude( 0.1 )
+        # self.computeRiverAltitude( 0.03 )
 
-        self.generateTerrain( )
+        # self.generateTerrain( )
 
         # self.draw3dRiver( )
 
@@ -103,7 +103,8 @@ class Terrain:
                 if region.nextEdge is not None:
                     if vertexIndex in region.nextEdge:
                         #sum Y value to vertex
-                        yDist = region.nextEdgeY - self.vertices3d[vertexIndex][1]
+                        yDist = region.nextEdgeY
+                        print yDist
                         self.vertices3d[vertexIndex][1] = yDist
 
         for v in self.vertices3d:
@@ -263,10 +264,11 @@ class Terrain:
         return zip(xOrig[0::3], xOrig[1::3], xOrig[2::3])
 
     def draw3dRiver( self ):
+
         riverPoints3D = []
         for region in self.regions.values():
-            tP = region.point
-            tP = np.insert(tP, 1, region.pointY)
+            tP = region.point.tolist()
+            tP.insert(1, region.pointY)
             riverPoints3D.append( tP )
         print riverPoints3D
-        river = pm.curve( n='rCurve3D', p=riverPoints3D )
+        river = pm.curve( n='rCurve3D', ep=riverPoints3D )
